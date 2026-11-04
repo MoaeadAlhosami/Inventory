@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from './services/api';
-import { getApiErrorMessage } from './services/apiError';
+import { getApiErrorMessage, isUnauthorized } from './services/apiError';
+import { LoginScreen } from './components/LoginScreen';
+import { useAuth } from './hooks/useAuth';
 import type { Product } from './types/inventory';
 import { useTheme } from './hooks/useTheme';
 import { useToast } from './hooks/useToast';
 import { CopyableText } from './components/CopyableText';
-import { useCashbox, useCategories, useProducts, useSummary, useTransactions } from './hooks/useInventoryQueries';
+import { useCashbox, useCategories, useProducts, useQrScans, useSummary, useTransactions } from './hooks/useInventoryQueries';
 import {
   Search,
   Download,
@@ -18,10 +20,13 @@ import {
   Wallet,
   Boxes,
   AlertTriangle,
-  X
+  QrCode,
+  X,
+  LogOut
 } from 'lucide-react';
 
-export default function App() {
+function InventoryApp() {
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'inventory' | 'transactions' | 'cashbox'>('inventory');
   const { isDark, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
@@ -44,6 +49,7 @@ export default function App() {
   const transactionsQuery = useTransactions({ search: debouncedSearch, page }, activeTab === 'transactions');
   const { data: categories = [] } = useCategories();
   const { data: summary } = useSummary();
+  const { data: qrScans = 0 } = useQrScans();
   const { data: cashbox } = useCashbox();
 
   const productsData = productsQuery.data;
@@ -97,7 +103,9 @@ export default function App() {
   // Surface background loading failures (products, summary, cash box, audit log)
   const loadError = productsQuery.error ?? transactionsQuery.error;
   useEffect(() => {
-    if (loadError) toast.error('Failed to load data', getApiErrorMessage(loadError));
+    if (loadError && !isUnauthorized(loadError)) {
+      toast.error('Failed to load data', getApiErrorMessage(loadError));
+    }
   }, [loadError, toast]);
 
   // Modal Helpers
@@ -328,6 +336,17 @@ export default function App() {
             >
               {isDark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <div className="hidden sm:flex flex-col items-end leading-tight px-1">
+              <span className="text-xs font-bold text-slate-800 dark:text-white">{user?.name}</span>
+              <span className="text-[10px] text-slate-500 dark:text-[#8b949e]">{user?.email}</span>
+            </div>
+            <button
+              onClick={() => { void logout(); }}
+              className="p-2 rounded-lg bg-light-subtle dark:bg-[#1a1d22] border border-slate-200 dark:border-[#262b32] text-slate-600 dark:text-[#8b949e] hover:text-slate-900 dark:hover:text-white transition"
+              title="Sign out"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
 
         </div>
@@ -336,8 +355,21 @@ export default function App() {
       {/* 2. MAIN VIEWPORT */}
       <main className="max-w-[1700px] mx-auto p-6 space-y-6">
 
-        {/* 4 KPI SUMMARY CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI SUMMARY CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+
+          {/* QR code scans */}
+          <div className="relative rounded-xl bg-light-surface dark:bg-[#14161a] border border-slate-200 dark:border-[#1f2328] p-5 shadow-sm overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-red-600"></div>
+            <div className="flex items-center justify-between text-slate-500 dark:text-[#8b949e] text-xs font-bold tracking-wider mb-2">
+              <span>QR code scans</span>
+              <QrCode size={16} />
+            </div>
+            <div className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white tracking-tight">
+              {qrScans.toLocaleString('en-US')}
+            </div>
+            <div className="text-xs font-semibold text-slate-500 dark:text-[#6e7681] mt-1.5">links page opens</div>
+          </div>
 
           {/* Card 1: Warehouse Value */}
           <div className="relative rounded-xl bg-light-surface dark:bg-[#14161a] border border-slate-200 dark:border-[#1f2328] p-5 shadow-sm overflow-hidden">
@@ -1035,4 +1067,22 @@ export default function App() {
 
     </div>
   );
+}
+
+export default function App() {
+  const { user, ready } = useAuth();
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-light-canvas dark:bg-[#0c0d0e] flex items-center justify-center text-sm font-semibold text-slate-500 dark:text-[#8b949e]">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  return <InventoryApp />;
 }

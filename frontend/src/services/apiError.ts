@@ -1,12 +1,16 @@
 import axios from 'axios';
 
+export function isUnauthorized(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401;
+}
+
 export function getApiErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
   if (!axios.isAxiosError(error)) {
     return error instanceof Error ? error.message : fallback;
   }
 
   if (!error.response) {
-    return 'Cannot reach the server. Check that the backend is running.';
+    return 'Cannot reach the server. Check your connection and try again.';
   }
 
   const data = error.response.data as { message?: string; errors?: Record<string, string[]> } | undefined;

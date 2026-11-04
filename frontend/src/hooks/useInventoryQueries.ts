@@ -32,6 +32,7 @@ export const queryKeys = {
   summary: ['inventory', 'summary'] as const,
   transactions: (filters: TransactionFilters) => ['inventory', 'transactions', filters] as const,
   cashbox: ['cashbox'] as const,
+  qrScans: ['links', 'scans'] as const,
 };
 
 export function useProducts(filters: ProductFilters) {
@@ -76,6 +77,16 @@ export function useTransactions(filters: TransactionFilters, enabled: boolean) {
     },
     placeholderData: keepPreviousData,
     enabled,
+  });
+}
+
+export function useQrScans() {
+  return useQuery({
+    queryKey: queryKeys.qrScans,
+    queryFn: async (): Promise<number> => {
+      const { data } = await api.get('/links/scans');
+      return Number(data.scans) || 0;
+    },
   });
 }
 
